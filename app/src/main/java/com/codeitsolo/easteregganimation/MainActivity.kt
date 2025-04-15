@@ -5,8 +5,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.repeatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -14,14 +22,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
@@ -32,6 +44,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.codeitsolo.easteregganimation.ui.theme.EasterEggAnimationTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.seconds
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -73,7 +89,16 @@ val easterEggHatchedBackgroundColors = listOf(
 fun EasterEggApp(
     modifier: Modifier = Modifier
 ) {
+    var isEasterEggShaking by remember(Unit) { mutableStateOf(false) }
     val isEasterEggHatched by remember(Unit) { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        scope.launch {
+            delay((4..6).random().seconds)
+            isEasterEggShaking = true
+        }
+    }
 
     Scaffold(
         modifier = modifier
@@ -109,6 +134,14 @@ fun EasterEggApp(
             EasterEgg(
                 modifier = Modifier
                     .padding(top = 110.dp),
+                isEasterEggShaking = isEasterEggShaking,
+                onClick = {
+                    scope.launch {
+                        isEasterEggShaking = false
+                        delay((4..6).random().seconds)
+                        isEasterEggShaking = true
+                    }
+                }
             )
         }
     }
@@ -116,10 +149,77 @@ fun EasterEggApp(
 
 @Composable
 private fun EasterEgg(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isEasterEggShaking: Boolean = true,
+    onClick: () -> Unit,
 ) {
+    val rotation = remember { Animatable(0f) }
+    val offsetX = remember { Animatable(0f) }
+    val scale = remember { Animatable(1f) }
+
+    LaunchedEffect(isEasterEggShaking) {
+        if (isEasterEggShaking) {
+            rotation.snapTo(0f)
+            offsetX.snapTo(0f)
+            scale.snapTo(1f)
+
+            launch {
+                while (isActive) {
+                    rotation.animateTo(
+                        targetValue = 10f,
+                        animationSpec = tween(120, easing = LinearEasing),
+                        initialVelocity = 1000f
+                    )
+                    rotation.animateTo(
+                        targetValue = -10f,
+                        animationSpec = tween(240, easing = LinearEasing),
+                    )
+                    rotation.animateTo(
+                        targetValue = 0f,
+                        animationSpec = tween(120, easing = LinearEasing),
+                    )
+                }
+                rotation.snapTo(0f)
+            }
+
+            launch {
+                offsetX.animateTo(
+                    targetValue = 10f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(600, easing = LinearEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    initialVelocity = 1000f
+                )
+                offsetX.snapTo(0f)
+            }
+
+            launch {
+                scale.animateTo(
+                    targetValue = 1.1f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(600, easing = LinearEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    initialVelocity = 1000f
+                )
+                scale.snapTo(0f)
+            }
+        }
+    }
+
     Image(
-        modifier = modifier,
+        modifier = modifier
+            .graphicsLayer {
+                rotationZ = rotation.value
+                translationX = offsetX.value
+                scaleY = scale.value
+            }
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() },
+                onClick = onClick,
+            ),
         painter = painterResource(R.drawable.img_easter_egg),
         contentDescription = null,
     )
