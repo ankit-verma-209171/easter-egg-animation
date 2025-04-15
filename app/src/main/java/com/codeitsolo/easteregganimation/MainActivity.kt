@@ -8,8 +8,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.repeatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -30,6 +30,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -44,6 +45,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.codeitsolo.easteregganimation.ui.theme.EasterEggAnimationTheme
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -90,14 +92,35 @@ fun EasterEggApp(
     modifier: Modifier = Modifier
 ) {
     var isEasterEggShaking by remember(Unit) { mutableStateOf(false) }
-    val isEasterEggHatched by remember(Unit) { mutableStateOf(false) }
+    var isEasterEggHatched by remember(Unit) { mutableStateOf<Boolean>(false) }
+    var isToastVisible by remember(Unit) { mutableStateOf<Boolean>(false) }
     val scope = rememberCoroutineScope()
+    var toastJob by remember { mutableStateOf<Job?>(null) }
+    val toastAlpha by animateFloatAsState(
+        targetValue = if (isToastVisible) 1f else 0f,
+        label = "toastAlpha",
+    )
 
-    LaunchedEffect(Unit) {
+    fun shakeEasterEgg() {
         scope.launch {
+            isEasterEggShaking = false
             delay((4..6).random().seconds)
             isEasterEggShaking = true
         }
+    }
+
+    fun showToast(isEasterEggReadyToHatch: Boolean) {
+        toastJob?.cancel()
+        toastJob = scope.launch {
+            isToastVisible = true
+            isEasterEggHatched = isEasterEggReadyToHatch
+            delay(2.seconds)
+            isToastVisible = false
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        shakeEasterEgg()
     }
 
     Scaffold(
@@ -127,6 +150,7 @@ fun EasterEggApp(
 
             Toast(
                 modifier = Modifier
+                    .alpha(alpha = toastAlpha)
                     .padding(top = 102.dp),
                 isEasterEggHatched = isEasterEggHatched
             )
@@ -136,11 +160,9 @@ fun EasterEggApp(
                     .padding(top = 110.dp),
                 isEasterEggShaking = isEasterEggShaking,
                 onClick = {
-                    scope.launch {
-                        isEasterEggShaking = false
-                        delay((4..6).random().seconds)
-                        isEasterEggShaking = true
-                    }
+                    showToast(isEasterEggReadyToHatch = isEasterEggShaking)
+                    if (!isEasterEggShaking) return@EasterEgg
+                    shakeEasterEgg()
                 }
             )
         }
